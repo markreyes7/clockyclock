@@ -37,10 +37,12 @@ char ssid[] = SECRET_SSID;        // your network SSID (name)
 char pass[] = SECRET_PASS;    // your network password (use for WPA, or use as key for WEP)
 char ssid2[]= SECRET_SSID2;
 char pass2[] = SECRET_PASS2;
-
-int wifiStatus = WL_IDLE_STATUS;
+ int wifiStatus = WL_IDLE_STATUS;
 WiFiUDP Udp; // A UDP instance to let us send and receive packets over UDP
 NTPClient timeClient(Udp);
+unsigned long lastSync = 0;
+const unsigned long syncInterval = 600000; // 10 minutes in millis
+
 
 ArduinoLEDMatrix matrix;
 
@@ -59,6 +61,27 @@ void printWifiStatus() {
   Serial.print("signal strength (RSSI):");
   Serial.print(rssi);
   Serial.println(" dBm");
+}
+
+void executeResync(){
+  if (millis() - lastSync > syncInterval) {
+    syncRTCFromNTP();
+    lastSync = millis();
+    Serial.println("Time has been resynced");
+  }
+}
+
+void syncRTCFromNTP(){
+  auto timeZoneOffsetHours = -7;
+  auto unixTime = timeClient.getEpochTime() + (timeZoneOffsetHours * 3600);
+  Serial.print("Unix time = ");
+  Serial.println(unixTime);
+  RTCTime timeToSet = RTCTime(unixTime);
+  RTC.setTime(timeToSet);
+
+  // Retrieve the date and time from the RTC and print them
+  RTCTime currentTime;
+  RTC.getTime(currentTime);
 }
 
 void connectToWiFi(){
@@ -104,10 +127,7 @@ void setup(){
   timeClient.begin();
   timeClient.update();
 
-  // Get the current date and time from an NTP server and convert
-  // it to UTC +2 by passing the time zone offset in hours.
-  // You may change the time zone offset to your local one.
-  auto timeZoneOffsetHours = -8;
+  auto timeZoneOffsetHours = -7;
   auto unixTime = timeClient.getEpochTime() + (timeZoneOffsetHours * 3600);
   Serial.print("Unix time = ");
   Serial.println(unixTime);
@@ -132,9 +152,7 @@ void setup(){
 
   // add some static text
 
-  // will only show "UNO" (not enough space on the display)
-
-  const char text[] = "UNO r4";
+  const char text[] = "Connected!";
 
   matrix.textFont(Font_4x6);
 
@@ -151,6 +169,8 @@ void setup(){
   delay(2000);
 
 }
+
+
 
 
 void loop(){
@@ -207,8 +227,8 @@ void loop(){
 
   matrix.print(+ timeStr);
   matrix.endText(SCROLL_LEFT);
-
-
+  
+  executeResync();
 
  
 
